@@ -78,6 +78,7 @@ const isExistingUser = async (companyId, lineUserId, lineDisplayName) => {
                     "line_user_id": { S: lineUserId },
                     "line_display_name": { S: lineDisplayName },
                     "employee_key": { NULL: true },
+                    "employee_code": { NULL: true },
                     "employee_name": { NULL: true },
                     "work_start": { NULL: true },
                     "work_end": { NULL: true },

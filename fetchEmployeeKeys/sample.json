@@ -1,0 +1,10 @@
+{
+    "company_id": "test",
+    "accounts": [
+        {
+            "line_user_id": "test",
+            "employee_code": "test",
+            "employee_key": "test"
+        }
+    ]
+}

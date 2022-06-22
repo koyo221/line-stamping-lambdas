@@ -22,19 +22,24 @@ exports.handler = async (event) => {
     const date = new Date(Date.now() + ((new Date().getTimezoneOffset() + (9 * 60)) * 60 * 1000));
     const [hour, minutes] = [date.getHours(), date.getMinutes()];
 
-    console.log(`Current time is ${hour}:${minutes}.`);
+    console.log(`Current time is ${hour}:${minutes}`);
 
-    users.Items.map(async (user) => {
-        const [workStart, workEnd] = [user.work_start.S, user.work_start.S];
-        const stampingCount = user.stamping_count.S;
+    // Always use for...of for await call (not map or other callbacks)
+    for (const user of users.Items) {
+        const [workStart, workEnd] = [Number(user.work_start.S), Number(user.work_end.S)];
+        const stampingCount = Number(user.stamping_count.S);
 
         const expWorkStart
-            = workStart == (hour - 1) && minutes >= 50 && minutes <= 59 && stampingCount == 0;
+            = workStart - 1 == hour && minutes >= 50 && minutes <= 59 && stampingCount == 0;
         const expWorkEnd
-            = workEnd   == hour       && minutes >= 0  && minutes <= 9  && (stampingCount == 0 || stampingCount == 1);
+            = workEnd       == hour && minutes >= 10 && minutes <= 19 && (stampingCount == 0 || stampingCount == 1);
+
+        const doRemind = expWorkStart || expWorkEnd;
+        console.log(`expWorkStart is ${expWorkStart}, expWorkEnd is ${expWorkEnd}, finally doRemind is ${doRemind}`);
 
         // Send Reminder
-        if (expWorkStart || expWorkEnd) {
+        if (doRemind) {
+            console.log('remind start')
             const pushMessage = {
                 to: user.line_user_id.S,
                 messages:[
@@ -58,19 +63,23 @@ exports.handler = async (event) => {
             }
 
             const lineAccessToken = findAccessToken(companies, user.company_id.S);
-            const res = await axios.post(
-                "https://api.line.me/v2/bot/message/push",
-                pushMessage,
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${lineAccessToken}`
+            try {
+                const res = await axios.post(
+                    "https://api.line.me/v2/bot/message/push",
+                    pushMessage,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${lineAccessToken}`
+                        }
                     }
-                }
-            )
-            console.log(res);
+                )
+                console.log(res);
+            } catch (e) {
+                console.log(e);
+            }
         }
-    })
+    }
 };
 
 /**
