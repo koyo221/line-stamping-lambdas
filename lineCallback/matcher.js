@@ -20,19 +20,25 @@ exports.match = async (requestFromLine, company) => {
             }
         });
     const lineDisplayName = lineProfile.data.displayName;
-    const isExist = await isExistingUser(companyId, lineUserId, lineDisplayName);
-    if (!isExist) {
+
+    // Check if the user exists
+    const user = await getUser(companyId, lineUserId, lineDisplayName);
+    if (user === "SignedUp") {
         return "ユーザー登録が完了しました。"
-    } else if (isExist === "Error") {
+    } else if (user === "Error") {
         return "エラーが発生しました。"
     }
 
     const message = requestFromLine.events[0].message.text;
 
-    // if (isStamping()) {
-    //     return handleStamping(lineUserId, kotAccessToken);
-    // }
+    // Handle stamping
+    console.log(message);
+    if (isStamping(message)) {
+        console.log("in text");
+        return handleStamping(user, lineDisplayName, kotAccessToken);
+    }
 
+    // Handle work time message
     const workTimes = isWorkTimeSubmit(message);
     if (workTimes) {
         const resWorkTime = await handleWorkTime(workTimes, companyId, lineUserId, lineDisplayName);
@@ -42,18 +48,18 @@ exports.match = async (requestFromLine, company) => {
         return "時刻を更新しました。";
     }
 
-    return "test end"
+    return "以下のメッセージを使用してください\n「打刻」: 自動打刻を行う"
 }
 
 /**
- * Check if user is existing. If not, register.
+ * Check if the user exists. If not, register.
  *
  * @param  companyId
  * @param  lineUserId
  * @param  lineDisplayName
  * @returns
  */
-const isExistingUser = async (companyId, lineUserId, lineDisplayName) => {
+const getUser = async (companyId, lineUserId, lineDisplayName) => {
     const dynamoDbQueryParams = {
         "TableName": 'users',
         "KeyConditionExpression": "#pk_name = :pk_prm and #sk_name = :sk_prm",
@@ -67,10 +73,10 @@ const isExistingUser = async (companyId, lineUserId, lineDisplayName) => {
         }
     }
 
-    let user
+    let userData
     try {
-        user = await dynamo.query(dynamoDbQueryParams).promise();
-        if (user.Count === 0) {
+        userData = await dynamo.query(dynamoDbQueryParams).promise();
+        if (userData.Count === 0) {
             const dynamoDbPutParams = {
                 "TableName": 'users',
                 "Item": {
@@ -88,9 +94,9 @@ const isExistingUser = async (companyId, lineUserId, lineDisplayName) => {
             console.log(dynamoDbPutParams)
             await dynamo.putItem(dynamoDbPutParams).promise();
             console.log(`Created user: ${JSON.stringify(dynamoDbPutParams)}`)
-            return false;
+            return "SignedUp";
         };
-        return true;
+        return userData;
     } catch (e) {
         // TODO: Find better implementation
         console.log(e);
@@ -99,11 +105,81 @@ const isExistingUser = async (companyId, lineUserId, lineDisplayName) => {
 
 }
 
+/**
+ * Check if stamping
+ *
+ * @param str
+ * @returns str is boolean
+ */
 const isStamping = (str) => {
     return /^打刻$/.test(str);
 }
 
-const handleStamping = (lineUserId, kotAccessToken) => {
+/**
+ * Handle stamping
+ *
+ * @param  user
+ * @param  lineDisplayName
+ * @param  kotAccessToken
+ * @returns
+ */
+const handleStamping = async (user, lineDisplayName, kotAccessToken) => {
+    const kotHeader = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${kotAccessToken}`,
+    }
+
+    const date = new Date(Date.now() + ((new Date().getTimezoneOffset() + (9 * 60)) * 60 * 1000));
+    const kotBody = {
+        date: `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+        time: `${date.toISOString().slice(0, 19)}+09:00`
+    }
+
+    console.log(kotHeader)
+    console.log(kotBody)
+
+    console.log(user.Items[0])
+
+    let responseFromKot
+    try {
+        responseFromKot = await axios.post(
+            `https://api.kingtime.jp/v1.0/daily-workings/timerecord/${user.Items[0].employee_key.S}`,
+            kotBody,
+            {headers: kotHeader},
+        )
+        console.log(responseFromKot);
+    } catch (e) {
+        console.log(e);
+        return "打刻に失敗しました。";
+    }
+
+    try {
+        const dynamoDbUpdateItemParams = {
+            "TableName": 'users',
+            "Key": {
+                "company_id"  : { S: user.Items[0].company_id.S },
+                "line_user_id": { S: user.Items[0].line_user_id.S },
+            },
+            "UpdateExpression": `
+                set
+                #item1 = :val1,
+                #item2 = :val2
+                `,
+            "ExpressionAttributeNames": {
+                '#item1': 'stamping_count',
+                '#item2': 'line_display_name'
+            },
+            "ExpressionAttributeValues": {
+                ':val1': { S: String(Number(user.Items[0].stamping_count.S ) + 1) },
+                ':val2': { S: user.Items[0].line_display_name.S }
+            },
+        };
+        await dynamo.updateItem(dynamoDbUpdateItemParams).promise();
+        return "打刻に成功しました。"
+    } catch (e) {
+        console.log(e);
+        return "打刻には成功しましたが、打刻回数の登録に失敗しました。"
+    }
 
 }
 
