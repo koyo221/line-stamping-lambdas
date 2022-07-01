@@ -48,7 +48,18 @@ exports.match = async (requestFromLine, company) => {
         return "時刻を更新しました。";
     }
 
-    return "以下のメッセージを使用してください\n「打刻」: 自動打刻を行う"
+    if (isDeleting(message)) {
+        const res = await handleDelete(user, lineDisplayName)
+        if (res === "Error") return "エラーが発生しました。"
+        return "出勤/退勤時間を削除しました。"
+    }
+
+    // デフォルトメッセージ
+    const [workStart, workEnd] = [user.Items[0].work_start.S, user.Items[0].work_end.S]
+    if (workStart && workEnd) {
+        return `開始時間: ${workStart}時、終了時間: ${workEnd}時で設定されています。\nコマンド\n「打刻」: 自動打刻を行う`
+    }
+    return "勤務開始、終了時刻は設定されていません。\nコマンド\n「打刻」: 自動打刻を行う"
 }
 
 /**
@@ -134,11 +145,6 @@ const handleStamping = async (user, lineDisplayName, kotAccessToken) => {
         date: `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
         time: `${date.toISOString().slice(0, 19)}+09:00`
     }
-
-    console.log(kotHeader)
-    console.log(kotBody)
-
-    console.log(user.Items[0])
 
     let responseFromKot
     try {
@@ -238,6 +244,52 @@ const handleWorkTime = async (workTimes, companyId, lineUserId ,lineDisplayName)
     try {
         await dynamo.updateItem(dynamoDbUpdateItemParams).promise();
         console.log(`Updated work time ${dynamoDbUpdateItemParams}`);
+        return true;
+    } catch (e) {
+        console.log(e);
+        return "Error";
+    }
+}
+
+/**
+ * Check if deleting
+ *
+ * @param str
+ * @returns boolean
+ */
+const isDeleting = (str) => {
+    return /^削除$/.test(str);
+}
+
+const handleDelete = async (user, lineDisplayName) => {
+    const dynamoDbUpdateItemParams = {
+        "TableName": 'users',
+        "Key": {
+            "company_id": { S: user.Items[0].company_id.S },
+            "line_user_id": { S: user.Items[0].line_user_id.S },
+        },
+        "UpdateExpression": `
+            set #stampingCount = :stampingCountValue,
+                #workStart = :workStartValue,
+                #workEnd = :workEndValue,
+                #lineDisplayName = :lineDisplayNameValue
+            `,
+        "ExpressionAttributeNames": {
+            '#stampingCount': 'stamping_count',
+            '#workStart': 'work_start',
+            '#workEnd': 'work_end',
+            '#lineDisplayName': 'line_display_name',
+        },
+        "ExpressionAttributeValues": {
+            ':stampingCountValue'  : { S: '0' },
+            ':workStartValue'      : { NULL: true },
+            ':workEndValue'        : { NULL: true },
+            ':lineDisplayNameValue': { S: lineDisplayName },
+        },
+    }
+    try {
+        await dynamo.updateItem(dynamoDbUpdateItemParams).promise();
+        console.log(`Deleted work time ${dynamoDbUpdateItemParams}`);
         return true;
     } catch (e) {
         console.log(e);
