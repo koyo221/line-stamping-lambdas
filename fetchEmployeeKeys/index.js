@@ -64,7 +64,12 @@ exports.handler = async (event) => {
             console.log(responseFromKot);
         } catch (e) {
             console.log(e);
-            continue;
+            return {
+                "statusCode": 500,
+                "body": JSON.stringify({ error: "Server error." }),
+                "headers": headers,
+                "isBase64Encoded": false,
+            }
         }
 
         const [employeeName, employeeKey] = [

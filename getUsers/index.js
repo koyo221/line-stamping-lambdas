@@ -46,8 +46,6 @@ exports.handler = async (event) => {
         "accounts": accounts,
     }
 
-
-
     const response = {
         "statusCode": 200,
         "body": JSON.stringify(body),
