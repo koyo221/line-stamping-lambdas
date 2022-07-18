@@ -32,28 +32,27 @@ exports.handler = async (event) => {
         const expWorkStart
             = workStart - 1 == hour && minutes >= 50 && minutes <= 59 && stampingCount == 0;
         const expWorkEnd
-            = workEnd       == hour && minutes >= 10 && minutes <= 19 && (stampingCount == 0 || stampingCount == 1);
+            = workEnd == hour && minutes >= 10 && minutes <= 19 && (stampingCount == 0 || stampingCount == 1);
 
         const doRemind = expWorkStart || expWorkEnd;
-        console.log(`expWorkStart is ${expWorkStart}, expWorkEnd is ${expWorkEnd}, finally doRemind is ${doRemind}`);
 
         // Send Reminder
         if (doRemind) {
             console.log('remind start')
             const pushMessage = {
                 to: user.line_user_id.S,
-                messages:[
+                messages: [
                     {
-                        "type":"text",
-                        "text":"打刻を行ってください。",
+                        "type": "text",
+                        "text": "打刻を行ってください。",
                         "quickReply": {
                             "items": [
                                 {
-                                "type": "action",
-                                "action": {
-                                    "type":"message",
-                                    "label":"打刻を行う",
-                                    "text": "打刻"
+                                    "type": "action",
+                                    "action": {
+                                        "type": "message",
+                                        "label": "打刻を行う",
+                                        "text": "打刻"
                                     }
                                 },
                             ]
@@ -79,6 +78,71 @@ exports.handler = async (event) => {
                 console.log(e);
             }
         }
+
+        const expWorkStartNoStamping
+            = workStart == hour && minutes >= 30 && minutes <= 40 && stampingCount == 0;
+        const expWorkEndNoStamping
+            = workEnd == hour && minutes >= 30 && minutes <= 40 && (stampingCount == 0 || stampingCount == 1);
+        const doRemindNoStamping = expWorkStartNoStamping || expWorkEndNoStamping;
+
+        if (doRemindNoStamping) {
+            let text
+            if (expWorkStartNoStamping) {
+                text = `出勤${user.work_start.S}`
+            };
+            if (expWorkEndNoStamping) {
+                text = `退勤${user.work_end.S}`
+            };
+            if (!text) return;
+
+            const pushMessageNoStamping = {
+                to: user.line_user_id.S,
+                messages: [
+                    {
+                        "type": "text",
+                        "text": "修正打刻を行いますか？",
+                        "quickReply": {
+                            "items": [
+                                {
+                                    "type": "action",
+                                    "action": {
+                                        "type": "message",
+                                        "label": text,
+                                        "text": text
+                                    }
+                                },
+                            ]
+                        }
+                    }
+                ]
+            }
+
+            const lineAccessToken = findAccessToken(companies, user.company_id.S);
+            try {
+                const res = await axios.post(
+                    "https://api.line.me/v2/bot/message/push",
+                    pushMessageNoStamping,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${lineAccessToken}`
+                        }
+                    }
+                )
+                console.log(res);
+            } catch (e) {
+                console.log(e);
+            }
+        }
+
+
+
+
+
+
+
+
+
     }
 };
 
@@ -104,6 +168,6 @@ const findAccessToken = (companies, companyId) => {
  */
 const isHoliday = async () => {
     const res = await axios.get('https://s-proj.com/utils/checkHoliday.php');
-    if(res.data === 'holiday') return true;
+    if (res.data === 'holiday') return true;
     return false;
 }

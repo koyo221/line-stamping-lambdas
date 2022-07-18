@@ -38,6 +38,17 @@ exports.match = async (requestFromLine, company) => {
         return handleStamping(user, lineDisplayName, kotAccessToken);
     }
 
+    // Handle Stamping
+    const startTime = isStart(message);
+    if (startTime) {
+        return handleStartOrEnd(user, 1, startTime, kotAccessToken);
+    }
+
+    const endTime = isEnd(message);
+    if (endTime) {
+        return handleStartOrEnd(user, 2, endTime, kotAccessToken);
+    }
+
     // Handle work time message
     const workTimes = isWorkTimeSubmit(message);
     if (workTimes) {
@@ -200,7 +211,7 @@ const isWorkTimeSubmit = (str) => {
     const times = str.split('/');
     const timeList = [
         '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12',
-        '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23', '24']
+        '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
     if (!timeList.includes(times[0])) return false;
     if (!timeList.includes(times[1])) return false;
     if (times[0] === times[1]) return false;
@@ -294,5 +305,81 @@ const handleDelete = async (user, lineDisplayName) => {
     } catch (e) {
         console.log(e);
         return "Error";
+    }
+}
+
+const isStart = (str) => {
+    if (!/^出勤\d\d$/.test(str)) return false;
+    const start = str.slice(2);
+    const timeList = [
+        '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12',
+        '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+    if (!timeList.includes(start)) return false;
+    return start;
+}
+
+const isEnd = (str) => {
+    if (!/^退勤\d\d$/.test(str)) return false;
+    const end = str.slice(2);
+    const timeList = [
+        '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12',
+        '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23']
+    if (!timeList.includes(end)) return false;
+    return end;
+}
+
+const handleStartOrEnd = async (user, type, time, kotAccessToken) => {
+    const kotHeader = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${kotAccessToken}`,
+    }
+
+    const date = new Date(Date.now() + ((new Date().getTimezoneOffset() + (9 * 60)) * 60 * 1000));
+    date.setHours(Number(time), 0);
+    const kotBody = {
+        date: `${String(date.getFullYear())}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+        time: `${date.toISOString().slice(0, 19)}+09:00`,
+        code: String(type),
+    }
+
+    let responseFromKot
+    try {
+        responseFromKot = await axios.post(
+            `https://api.kingtime.jp/v1.0/daily-workings/timerecord/${user.Items[0].employee_key.S}`,
+            kotBody,
+            {headers: kotHeader},
+        )
+        console.log(responseFromKot);
+    } catch (e) {
+        console.log(e);
+        return "打刻に失敗しました。";
+    }
+
+    try {
+        const dynamoDbUpdateItemParams = {
+            "TableName": 'users',
+            "Key": {
+                "company_id"  : { S: user.Items[0].company_id.S },
+                "line_user_id": { S: user.Items[0].line_user_id.S },
+            },
+            "UpdateExpression": `
+                set
+                #item1 = :val1,
+                #item2 = :val2
+                `,
+            "ExpressionAttributeNames": {
+                '#item1': 'stamping_count',
+                '#item2': 'line_display_name'
+            },
+            "ExpressionAttributeValues": {
+                ':val1': { S: String(Number(user.Items[0].stamping_count.S ) + 1) },
+                ':val2': { S: user.Items[0].line_display_name.S }
+            },
+        };
+        await dynamo.updateItem(dynamoDbUpdateItemParams).promise();
+        return "打刻に成功しました。"
+    } catch (e) {
+        console.log(e);
+        return "打刻には成功しましたが、打刻回数の登録に失敗しました。"
     }
 }
