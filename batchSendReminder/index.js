@@ -80,9 +80,9 @@ exports.handler = async (event) => {
         }
 
         const expWorkStartNoStamping
-            = workStart == hour && minutes >= 30 && minutes <= 40 && stampingCount == 0;
+            = workStart == hour && minutes >= 30 && minutes <= 39 && stampingCount == 0;
         const expWorkEndNoStamping
-            = workEnd == hour && minutes >= 30 && minutes <= 40 && (stampingCount == 0 || stampingCount == 1);
+            = workEnd == hour && minutes >= 30 && minutes <= 39 && (stampingCount == 0 || stampingCount == 1);
         const doRemindNoStamping = expWorkStartNoStamping || expWorkEndNoStamping;
 
         if (doRemindNoStamping) {
@@ -134,15 +134,6 @@ exports.handler = async (event) => {
                 console.log(e);
             }
         }
-
-
-
-
-
-
-
-
-
     }
 };
 

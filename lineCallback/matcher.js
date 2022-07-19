@@ -68,9 +68,21 @@ exports.match = async (requestFromLine, company) => {
     // デフォルトメッセージ
     const [workStart, workEnd] = [user.Items[0].work_start.S, user.Items[0].work_end.S]
     if (workStart && workEnd) {
-        return `開始時間: ${workStart}時、終了時間: ${workEnd}時で設定されています。\nコマンド\n「打刻」: 自動打刻を行う`
+        return `開始時間: ${workStart}時、終了時間: ${workEnd}時で設定されています。
+            \nコマンド
+            \n「HH/HH」: 開始/終了時刻を設定する
+            \n「打刻」: 自動打刻を行う
+            \n「出勤HH」: 時刻HHで出勤打刻をする
+            \n「退勤HH」: 時刻HHで退勤打刻をする
+            \n「削除」: 開始/終了時刻の設定を削除する`
     }
-    return "勤務開始、終了時刻は設定されていません。\nコマンド\n「打刻」: 自動打刻を行う"
+    return `勤務開始、終了時刻は設定されていません。
+        \nコマンド
+        \n「HH/HH」: 開始/終了時刻を設定する
+        \n「打刻」: 自動打刻を行う
+        \n「出勤HH」: 時刻HHで出勤打刻をする
+        \n「退勤HH」: 時刻HHで退勤打刻をする
+        \n「削除」: 開始/終了時刻の設定を削除する`
 }
 
 /**
